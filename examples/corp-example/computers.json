@@ -1,0 +1,78 @@
+[
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1201",
+    "Properties": {
+      "name": "DC01@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=DC01,OU=Domain Controllers,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1201",
+      "operatingsystem": "Windows Server 2022 Standard"
+    },
+    "LocalAdmins": [
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-512",
+        "ObjectType": "Group"
+      }
+    ],
+    "Sessions": [
+      {
+        "UserSID": "S-1-5-21-1004336348-1177238915-682003330-500",
+        "ComputerSID": "S-1-5-21-1004336348-1177238915-682003330-1201"
+      }
+    ],
+    "Aces": []
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1202",
+    "Properties": {
+      "name": "WS01@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=WS01,OU=Workstations,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1202",
+      "operatingsystem": "Windows 11 Enterprise"
+    },
+    "LocalAdmins": [
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1120",
+        "ObjectType": "Group"
+      }
+    ],
+    "Sessions": [
+      {
+        "UserSID": "S-1-5-21-1004336348-1177238915-682003330-1105",
+        "ComputerSID": "S-1-5-21-1004336348-1177238915-682003330-1202"
+      }
+    ],
+    "Aces": [
+      {
+        "PrincipalSID": "S-1-5-21-1004336348-1177238915-682003330-1107",
+        "PrincipalType": "User",
+        "RightName": "GenericAll",
+        "IsInherited": true
+      },
+      {
+        "PrincipalSID": "S-1-5-21-1004336348-1177238915-682003330-1107",
+        "PrincipalType": "User",
+        "RightName": "AddKeyCredentialLink",
+        "IsInherited": false
+      }
+    ]
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1203",
+    "Properties": {
+      "name": "FS01@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=FS01,OU=Servers,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1203",
+      "operatingsystem": "Windows Server 2022 Standard"
+    },
+    "LocalAdmins": [
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-512",
+        "ObjectType": "Group"
+      }
+    ],
+    "Aces": []
+  }
+]

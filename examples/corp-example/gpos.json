@@ -1,0 +1,19 @@
+[
+  {
+    "ObjectIdentifier": "1A2B3C4D-5E6F-4A7B-8C9D-0E1F2A3B4C5D",
+    "Properties": {
+      "name": "Baseline Policy@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN={1A2B3C4D-5E6F-4A7B-8C9D-0E1F2A3B4C5D},CN=Policies,CN=System,DC=corp,DC=example",
+      "gpcpath": "\\\\corp.example\\SysVol\\corp.example\\Policies\\{1A2B3C4D-5E6F-4A7B-8C9D-0E1F2A3B4C5D}"
+    },
+    "Aces": [
+      {
+        "PrincipalSID": "S-1-5-21-1004336348-1177238915-682003330-1107",
+        "PrincipalType": "User",
+        "RightName": "GenericWrite",
+        "IsInherited": false
+      }
+    ]
+  }
+]

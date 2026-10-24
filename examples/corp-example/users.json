@@ -1,0 +1,85 @@
+[
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1105",
+    "Properties": {
+      "name": "analyst@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=Analyst,OU=Staff,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1105"
+    },
+    "Aces": [],
+    "PrimaryGroupSID": "S-1-5-21-1004336348-1177238915-682003330-513"
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1106",
+    "Properties": {
+      "name": "svcbackup@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=SvcBackup,OU=Service,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1106"
+    },
+    "Aces": [],
+    "PrimaryGroupSID": "S-1-5-21-1004336348-1177238915-682003330-513"
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1107",
+    "Properties": {
+      "name": "contractor@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=Contractor,OU=Staff,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1107"
+    },
+    "Aces": [],
+    "PrimaryGroupSID": "S-1-5-21-1004336348-1177238915-682003330-513"
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1108",
+    "Properties": {
+      "name": "helpdesk1@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=Helpdesk1,OU=Staff,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1108"
+    },
+    "Aces": [],
+    "PrimaryGroupSID": "S-1-5-21-1004336348-1177238915-682003330-513"
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1109",
+    "Properties": {
+      "name": "svcapp@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=SvcApp,OU=Service,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1109",
+      "serviceprincipalnames": [
+        "MSSQLSvc/sql01.corp.example:1433"
+      ]
+    },
+    "Aces": [],
+    "PrimaryGroupSID": "S-1-5-21-1004336348-1177238915-682003330-513",
+    "AllowedToDelegate": [
+      "S-1-5-21-1004336348-1177238915-682003330-1203"
+    ]
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-500",
+    "Properties": {
+      "name": "Administrator@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=Administrator,CN=Users,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-500"
+    },
+    "Aces": [],
+    "PrimaryGroupSID": "S-1-5-21-1004336348-1177238915-682003330-513"
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-502",
+    "Properties": {
+      "name": "krbtgt@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=krbtgt,CN=Users,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-502"
+    },
+    "Aces": [],
+    "PrimaryGroupSID": "S-1-5-21-1004336348-1177238915-682003330-513"
+  }
+]

@@ -1,0 +1,19 @@
+[
+  {
+    "ObjectIdentifier": "8C3A4B5D-6E7F-4A9B-8C1D-2E3F4A5B6C7D",
+    "Properties": {
+      "name": "Staff@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "OU=Staff,DC=corp,DC=example"
+    },
+    "Links": [],
+    "Aces": [
+      {
+        "PrincipalSID": "S-1-5-21-1004336348-1177238915-682003330-1120",
+        "PrincipalType": "Group",
+        "RightName": "GenericAll",
+        "IsInherited": false
+      }
+    ]
+  }
+]
