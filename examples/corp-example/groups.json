@@ -1,0 +1,118 @@
+[
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-512",
+    "Properties": {
+      "name": "Domain Admins@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=Domain Admins,CN=Users,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-512",
+      "highvalue": true
+    },
+    "Members": [
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-500",
+        "ObjectType": "User",
+        "PrimaryGroup": false
+      },
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1121",
+        "ObjectType": "Group",
+        "PrimaryGroup": false
+      }
+    ],
+    "Aces": []
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-513",
+    "Properties": {
+      "name": "Domain Users@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=Domain Users,CN=Users,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-513"
+    },
+    "Members": [
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1105",
+        "ObjectType": "User",
+        "PrimaryGroup": true
+      },
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1106",
+        "ObjectType": "User",
+        "PrimaryGroup": true
+      },
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1107",
+        "ObjectType": "User",
+        "PrimaryGroup": true
+      },
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1108",
+        "ObjectType": "User",
+        "PrimaryGroup": true
+      },
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1109",
+        "ObjectType": "User",
+        "PrimaryGroup": true
+      },
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-500",
+        "ObjectType": "User",
+        "PrimaryGroup": true
+      },
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-502",
+        "ObjectType": "User",
+        "PrimaryGroup": true
+      }
+    ],
+    "Aces": []
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1120",
+    "Properties": {
+      "name": "Helpdesk@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=Helpdesk,OU=Groups,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1120"
+    },
+    "Members": [
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1105",
+        "ObjectType": "User",
+        "PrimaryGroup": false
+      },
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1108",
+        "ObjectType": "User",
+        "PrimaryGroup": false
+      }
+    ],
+    "Aces": []
+  },
+  {
+    "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1121",
+    "Properties": {
+      "name": "Support-Operators@CORP.EXAMPLE",
+      "domain": "CORP.EXAMPLE",
+      "distinguishedname": "CN=Support-Operators,OU=Groups,DC=corp,DC=example",
+      "objectsid": "S-1-5-21-1004336348-1177238915-682003330-1121"
+    },
+    "Members": [
+      {
+        "ObjectIdentifier": "S-1-5-21-1004336348-1177238915-682003330-1108",
+        "ObjectType": "User",
+        "PrimaryGroup": false
+      }
+    ],
+    "Aces": [
+      {
+        "PrincipalSID": "S-1-5-21-1004336348-1177238915-682003330-1120",
+        "PrincipalType": "Group",
+        "RightName": "GenericAll",
+        "IsInherited": false
+      }
+    ]
+  }
+]
