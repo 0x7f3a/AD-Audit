@@ -559,12 +559,6 @@ docs/                  export format and design notes
 main.py                launcher for running from a checkout
 ```
 
-## References
-
-- [Best practices for securing Active Directory](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/best-practices-for-securing-active-directory)
-- [BloodHound edge reference](https://bloodhound.readthedocs.io/en/latest/data-analysis/edges.html)
-- [Access control lists (Win32)](https://learn.microsoft.com/en-us/windows/win32/secauthz/access-control-lists)
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
