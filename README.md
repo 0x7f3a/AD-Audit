@@ -2,6 +2,20 @@
 
 Read-only Active Directory privilege-path analysis with evidence-backed findings.
 
+```
+ ○ analyst
+ │
+ ├─[MemberOf]──► ○ Helpdesk
+                 │
+                 ├─[GenericAll]──► ○ Support-Operators
+                                   │
+                                   ├─[MemberOf]──► ♛ DOMAIN ADMINS
+
+ ▄▀█ █▀▄   ▄▀█ █ █ █▀▄ █ ▀█▀
+ █▀█ █▄▀   █▀█ █▄█ █▄▀ █  █
+ read-only · evidence-backed · no exploitation
+```
+
 AD-Audit loads collected directory data, models objects and relationships as a
 typed graph, searches that graph for potential paths to privileged targets, and
 reports what it found in a compact terminal report or as JSON. It is built for
