@@ -77,7 +77,7 @@ def test_example_export_reports_high_findings(capsys, example_export):
     code, captured = run(["-i", str(example_export)], capsys)
     assert code == 2
     out = captured.out
-    assert "Active Directory Security Analysis" in out
+    assert "read-only · evidence-backed · no exploitation" in out
     assert "[HIGH] AD-PATH-" in out
 
 
@@ -139,7 +139,7 @@ def test_json_out_writes_file_and_keeps_text(capsys, example_export, tmp_path):
     assert target.is_file()
     document = json.loads(target.read_text(encoding="utf-8"))
     assert document["tool"]["name"] == "AD-Audit"
-    assert "Active Directory Security Analysis" in captured.out
+    assert "AD-Audit 0.1.0 · report schema 1.0" in captured.out
 
 
 def test_json_and_json_out_can_be_combined(capsys, example_export, tmp_path):
@@ -176,6 +176,13 @@ def test_no_color_and_width_options(capsys, example_export):
         if "http" in line:
             continue
         assert len(line) <= 90
+
+
+def test_no_banner_option(capsys, example_export):
+    code, captured = run(["-i", str(example_export), "--no-banner"], capsys)
+    assert code == 2
+    assert "♛ DOMAIN ADMINS" not in captured.out
+    assert captured.out.startswith("Target:")
 
 
 def test_verbose_includes_info_findings(capsys, tmp_path):

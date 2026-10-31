@@ -1,15 +1,18 @@
 """Terminal report, following the Privesc-Audit presentation conventions.
 
-Layout rules carried over from the reference tool:
+Layout, in order:
 
-* a ``====`` banner with a one-line title, then ``Key:   value`` context lines;
+* the banner: an example privilege path, the project wordmark and the promise
+  the tool makes, then the tool/version line;
+* ``Key:   value`` context lines for this run;
 * a short ``[+] <what ran>`` progress list (informational, not decoration);
 * a severity count block whose numbers match the findings printed below;
 * one block per finding, sorted by severity, with aligned ``Field:`` lines;
 * a closing ``NOTE:`` reminding the reader that findings are audit results.
 
 Everything is plain text with optional ANSI colour, so the output survives
-being saved, mailed, or pasted into a ticket.
+being saved, mailed, or pasted into a ticket. ``--no-banner`` drops the art for
+logs that are already framed by CI.
 """
 
 from __future__ import annotations
@@ -17,11 +20,12 @@ from __future__ import annotations
 import textwrap
 from typing import Dict, List, Optional, Sequence
 
+from .. import SCHEMA_VERSION, TOOL_NAME, __version__
 from ..analysis import AnalysisResult
 from ..models import Finding, Severity
-from ..relationships import EDGE_SPECS
 
 RESET = "\033[0m"
+_ART_COLOR = "\033[36m"  # cyan: branding, not a severity signal
 _SEVERITY_COLOR = {
     Severity.CRITICAL: "\033[1;35m",  # bold magenta
     Severity.HIGH: "\033[1;31m",  # bold red
@@ -33,18 +37,36 @@ _SEVERITY_COLOR = {
 DEFAULT_WIDTH = 100
 MAX_EVIDENCE_LINES = 12
 
+#: Banner. An annotated example path, the wordmark, and the promise the tool
+#: makes -- the same block the README opens with.
+ART: Sequence[str] = (
+    " ○ analyst",
+    " │",
+    " ├─[MemberOf]──► ○ Helpdesk",
+    "                 │",
+    "                 ├─[GenericAll]──► ○ Support-Operators",
+    "                                   │",
+    "                                   ├─[MemberOf]──► ♛ DOMAIN ADMINS",
+    "",
+    " ▄▀█ █▀▄   ▄▀█ █ █ █▀▄ █ ▀█▀",
+    " █▀█ █▄▀   █▀█ █▄█ █▄▀ █  █",
+    " read-only · evidence-backed · no exploitation",
+)
+
 
 def render(
     result: AnalysisResult,
     verbose: bool = False,
     use_color: bool = False,
     width: int = DEFAULT_WIDTH,
+    show_banner: bool = True,
 ) -> str:
     width = max(72, width)
     lines: List[str] = []
     labels = result.labels
 
-    _banner(lines)
+    if show_banner:
+        _banner(lines, use_color)
     _context(lines, result, width)
 
     for line in _progress_lines(result):
@@ -91,10 +113,15 @@ def render(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _banner(lines: List[str]) -> None:
-    lines.append("========================================")
-    lines.append(" Active Directory Security Analysis")
-    lines.append("========================================")
+def _banner(lines: List[str], use_color: bool) -> None:
+    color = _ART_COLOR if use_color else ""
+    reset = RESET if use_color else ""
+    for line in ART:
+        if not line:
+            lines.append("")
+            continue
+        lines.append(f"{color}{line}{reset}")
+    lines.append(f"{color}{TOOL_NAME} {__version__} · report schema {SCHEMA_VERSION}{reset}")
     lines.append("")
 
 
@@ -171,6 +198,10 @@ def _progress_lines(result: AnalysisResult) -> List[str]:
         f"Analysed {len(result.sources)} starting principal(s) "
         f"with max depth {result.config.max_depth}"
     )
+    if result.merged_paths:
+        lines.append(
+            f"Consolidated {result.merged_paths} duplicate chain(s) into shared findings"
+        )
     if result.search.stats.truncated:
         lines.append("Path search truncated - see limitations")
     return lines
@@ -236,35 +267,24 @@ def _finding_block(
         f"{color}[{finding.severity.label}]{reset} {finding.id}: {finding.title}"
     )
 
-    fields: Sequence = (
+    fields: List = [
         ("Check:", finding.check_id),
         ("Category:", finding.category),
         ("Confidence:", finding.confidence.label),
-    )
+    ]
+    if finding.affected_count > 1:
+        fields.append(("Affects:", f"{finding.affected_count} starting principals"))
     for label, value in fields:
         lines.append(f"  {label:<12}{value}")
 
     if finding.path is not None:
-        lines.append(f"  {'Start:':<12}{labels.get(finding.path.source, finding.path.source)}")
-        lines.append(f"  {'Target:':<12}{labels.get(finding.path.target, finding.path.target)}")
-        lines.append("  Path:")
-        lines.append(f"    {labels.get(finding.path.nodes[0], finding.path.nodes[0])}")
-        for edge in finding.path.steps:
-            target_label = labels.get(edge.target, edge.target)
-            lines.append(f"      -[{edge.type}]-> {target_label}")
+        chain = " -> ".join(labels.get(node, node) for node in finding.path.nodes)
+        lines.extend(_field("Path:", chain, width))
 
-        lines.append("  Why:")
-        for index, edge in enumerate(finding.path.steps, start=1):
-            source_label = labels.get(edge.source, edge.source)
-            target_label = labels.get(edge.target, edge.target)
-            spec = EDGE_SPECS.get(edge.type)
-            explanation = (
-                spec.explanation.format(source=source_label, target=target_label)
-                if spec
-                else f"{source_label} has an unrecognised relationship to {target_label}."
-            )
-            prefix = f"    {index}. "
-            lines.extend(_wrap(explanation, indent=" " * len(prefix), width=width, first_indent=prefix))
+    if finding.description:
+        lines.extend(_field("Detail:", finding.description, width))
+    if finding.impact:
+        lines.extend(_wrap(finding.impact, indent=_FIELD_INDENT, width=width))
 
     lines.append("  Evidence:")
     if not finding.evidence:
@@ -298,35 +318,34 @@ def _finding_block(
     if remaining > 0:
         lines.append(f"    ... {remaining} further evidence record(s) in the JSON report.")
 
-    if finding.prerequisites:
-        lines.append("  Prerequisites:")
-        for prerequisite in finding.prerequisites:
-            lines.extend(_bullet(prerequisite, width))
+    steps: List[str] = list(finding.recommendations)
+    if not steps and finding.recommendation:
+        steps.append(finding.recommendation)
+    steps.extend(f"Requires: {prerequisite}" for prerequisite in finding.prerequisites)
+    if steps:
+        lines.append("  Next steps:")
+        for item in steps:
+            lines.extend(_bullet(item, width))
 
-    lines.extend(_labeled_block("Impact:", finding.impact, width))
-    lines.extend(_labeled_block("Recommendation:", finding.recommendation, width))
     if finding.limitations:
         lines.append("  Limitations:")
         for limitation in finding.limitations:
             lines.extend(_bullet(limitation, width))
-    if finding.references:
-        lines.append("  References:")
-        for reference in finding.references:
-            lines.extend(_wrap(reference, indent="    ", width=width))
     lines.append("")
+
+
+_FIELD_INDENT = " " * len(f"  {'Path:':<12}")
+
+
+def _field(label: str, value: str, width: int) -> List[str]:
+    prefix = f"  {label:<12}"
+    return _wrap(value, indent=" " * len(prefix), width=width, first_indent=prefix)
 
 
 def _bullet(text: str, width: int, base: str = "    ") -> List[str]:
     """Render a wrapped bullet whose continuation aligns under the text."""
     first = f"{base}- "
     return _wrap(text, indent=" " * len(first), width=width, first_indent=first)
-
-
-def _labeled_block(label: str, value: str, width: int) -> List[str]:
-    if not value:
-        return []
-    prefix = f"  {label} "
-    return _wrap(value, indent=" " * len(prefix), width=width, first_indent=prefix)
 
 
 def _wrap(

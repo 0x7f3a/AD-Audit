@@ -446,6 +446,22 @@ class PrivilegePath:
         return "|".join(f"{edge.type}:{edge.source}->{edge.target}" for edge in self.steps)
 
     @property
+    def chain_key(self) -> Tuple[Any, ...]:
+        """Identity of the chain *below* the starting principal.
+
+        Two principals that join the same group share every hop after the first,
+        so they produce the same key. Analysis consolidates those into one
+        finding instead of printing the same chain once per account.
+        """
+        first = self.steps[0]
+        return (
+            self.target,
+            first.type,
+            first.target,
+            tuple((step.type, step.target) for step in self.steps[1:]),
+        )
+
+    @property
     def length(self) -> int:
         return len(self.steps)
 
@@ -494,6 +510,8 @@ class Finding:
     limitations: List[str] = field(default_factory=list)
     references: List[str] = field(default_factory=list)
     prerequisites: List[str] = field(default_factory=list)
+    recommendations: List[str] = field(default_factory=list)
+    affected_count: int = 1
 
     @property
     def sort_key(self) -> Tuple[int, int, str, str]:
@@ -519,8 +537,10 @@ class Finding:
         payload["evidence"] = list(self.evidence)
         payload["impact"] = self.impact
         payload["recommendation"] = self.recommendation
+        payload["recommendations"] = list(self.recommendations)
         payload["limitations"] = list(self.limitations)
         payload["prerequisites"] = list(self.prerequisites)
+        payload["affected_count"] = self.affected_count
         if self.references:
             payload["references"] = list(self.references)
         return payload

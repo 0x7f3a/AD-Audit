@@ -77,7 +77,7 @@ def test_derived_edge_lowers_confidence(tmp_path):
     result = analyse_payload(tmp_path, payload)
     finding = path_findings(result)[0]
     assert finding.confidence is Confidence.LIKELY
-    assert finding.severity is Severity.HIGH  # direct control no longer CRITICAL
+    assert finding.severity is Severity.MEDIUM  # derived evidence: a lead, not an incident
     assert any("derived" in limitation for limitation in finding.limitations)
 
 
@@ -101,7 +101,7 @@ def test_unresolved_intermediate_object_downgrades_to_possible(tmp_path):
     result = analyse_payload(tmp_path, payload)
     finding = path_findings(result)[0]
     assert finding.confidence is Confidence.POSSIBLE
-    assert finding.severity is Severity.MEDIUM
+    assert finding.severity is Severity.LOW
     assert any("weakly supported" in limitation for limitation in finding.limitations)
 
 
@@ -200,7 +200,7 @@ def test_duplicate_relationships_do_not_duplicate_findings(tmp_path):
     assert len(path_findings(result)) == 1
 
 
-def test_multiple_sources_are_analysed(tmp_path):
+def test_sources_sharing_a_chain_are_consolidated(tmp_path):
     payload = native_payload(
         base_objects()
         + [native_user(1106, "contractor"), native_group(1120, "Helpdesk")],
@@ -211,8 +211,42 @@ def test_multiple_sources_are_analysed(tmp_path):
         ],
     )
     result = analyse_payload(tmp_path, payload)
-    sources = {finding.source_objects[0] for finding in path_findings(result)}
-    assert sources == {sid(1105), sid(1106)}
+    findings = path_findings(result)
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.affected_count == 2
+    assert set(finding.source_objects) == {sid(1105), sid(1106)}
+    assert "2 starting principals" in finding.description
+    assert result.merged_paths == 1
+    assert any("Consolidated" in note for note in result.notes)
+
+
+def test_direct_grants_from_different_principals_are_not_merged(tmp_path):
+    payload = native_payload(
+        base_objects() + [native_user(1106, "contractor")],
+        [
+            relationship("GenericAll", sid(1105), sid(512)),
+            relationship("GenericAll", sid(1106), sid(512)),
+        ],
+    )
+    result = analyse_payload(tmp_path, payload)
+    findings = path_findings(result)
+    assert len(findings) == 2
+    assert all(finding.affected_count == 1 for finding in findings)
+
+
+def test_container_hops_are_not_traversed_by_default(tmp_path):
+    container = {"id": "OU-STAFF", "type": "ou", "name": "Staff", "domain": "corp.example"}
+    payload = native_payload(
+        base_objects() + [container],
+        [
+            relationship("GenericAll", sid(1105), "OU-STAFF"),
+            relationship("Contains", "OU-STAFF", sid(512)),
+        ],
+    )
+    assert path_findings(analyse_payload(tmp_path, payload)) == []
+    permissive = analyse_payload(tmp_path, payload, skip_container_hops=False)
+    assert len(path_findings(permissive)) == 1
 
 
 def test_session_exposure_path_is_explained(tmp_path):
