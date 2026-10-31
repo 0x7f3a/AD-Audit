@@ -1,4 +1,4 @@
-"""Terminal report: layout conventions, counts, verbosity and colour."""
+"""Terminal report: banner, layout conventions, counts, verbosity and colour."""
 
 from __future__ import annotations
 
@@ -31,10 +31,13 @@ def example_result(tmp_path):
     return analyse_payload(tmp_path, payload)
 
 
-def test_banner_and_context(tmp_path):
+def test_banner_shows_the_ascii_art(tmp_path):
     rendered = text.render(example_result(tmp_path))
-    assert "========================================" in rendered
-    assert " Active Directory Security Analysis" in rendered
+    assert "├─[MemberOf]──► ○ Helpdesk" in rendered
+    assert "♛ DOMAIN ADMINS" in rendered
+    assert "▄▀█ █▀▄" in rendered
+    assert "read-only · evidence-backed · no exploitation" in rendered
+    assert "AD-Audit 0.1.0 · report schema 1.0" in rendered
     assert "Target:   corp.example" in rendered
     assert "Mode:     Offline graph analysis (adaudit)" in rendered
     assert "Objects:  Users: 1 | Groups: 2 | Domains: 1" in rendered
@@ -44,21 +47,25 @@ def test_banner_and_context(tmp_path):
     assert "Coverage:" in rendered
 
 
+def test_banner_can_be_disabled(tmp_path):
+    rendered = text.render(example_result(tmp_path), show_banner=False)
+    assert "♛ DOMAIN ADMINS" not in rendered
+    assert rendered.startswith("Target:")
+
+
 def test_finding_block_fields(tmp_path):
     rendered = text.render(example_result(tmp_path))
     assert "[HIGH] AD-PATH-" in rendered
     assert "Check:      AD-PATH" in rendered
     assert "Category:   permission" in rendered
     assert "Confidence: CONFIRMED" in rendered
-    assert "Start:" in rendered
-    assert "Target:" in rendered
-    assert "Path:" in rendered
-    assert "-[MemberOf]->" in rendered
-    assert "-[GenericAll]->" in rendered
-    assert "Why:" in rendered
+    assert (
+        "Path:       CORP.EXAMPLE\\analyst -> CORP.EXAMPLE\\Helpdesk -> "
+        "CORP.EXAMPLE\\Domain Admins" in rendered
+    )
+    assert "Detail:     The collected data connects" in rendered
     assert "Evidence:" in rendered
-    assert "Prerequisites:" in rendered
-    assert "Recommendation:" in rendered
+    assert "Next steps:" in rendered
     assert "Limitations:" in rendered
     assert "NOTE: Findings are audit results requiring human verification" in rendered
 
@@ -72,6 +79,26 @@ def test_summary_matches_printed_findings(tmp_path):
     total_line = next(line for line in rendered.splitlines() if line.startswith("Findings:"))
     total = int(total_line.split(":")[1].strip())
     assert total == rendered.count("[HIGH] ") + rendered.count("[MEDIUM] ")
+
+
+def test_consolidated_chain_is_announced(tmp_path):
+    payload = native_payload(
+        [
+            native_user(1105, "analyst"),
+            native_user(1106, "contractor"),
+            native_group(512, "Domain Admins"),
+            native_group(1120, "Helpdesk"),
+            native_domain(),
+        ],
+        [
+            relationship("MemberOf", sid(1105), sid(1120)),
+            relationship("MemberOf", sid(1106), sid(1120)),
+            relationship("GenericAll", sid(1120), sid(512)),
+        ],
+    )
+    rendered = text.render(analyse_payload(tmp_path, payload))
+    assert "[+] Consolidated 1 duplicate chain(s)" in rendered
+    assert "Affects:    2 starting principals" in rendered
 
 
 def test_info_findings_hidden_unless_verbose(tmp_path):

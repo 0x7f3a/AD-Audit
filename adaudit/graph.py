@@ -138,8 +138,13 @@ class DirectoryGraph:
         max_depth: int = 6,
         max_paths: int = 50,
         budget: int = 200_000,
+        excluded: Sequence[str] = (),
     ) -> PathSearchResult:
         """Enumerate simple paths from ``sources`` to ``targets``.
+
+        ``excluded`` lists relationship types that are collected and worth
+        showing but must not be traversed, because they do not by themselves
+        confer leverage (``Contains`` is structural, not a privilege).
 
         Paths are returned shortest-first. Each path is unique by its ordered
         sequence of relationships, so two different relationship chains between
@@ -149,6 +154,7 @@ class DirectoryGraph:
         result = PathSearchResult()
         stats = result.stats
         stats.sources_requested = len(sources)
+        excluded_types = set(excluded)
 
         target_set = {target for target in targets if target in self.nodes}
         stats.sources_found = sum(1 for source in sources if source in self.nodes)
@@ -156,7 +162,11 @@ class DirectoryGraph:
             return result
 
         neighbours: Dict[str, List[Edge]] = {
-            node_id: [edge for edge in self.out(node_id) if edge.target in self.nodes]
+            node_id: [
+                edge
+                for edge in self.out(node_id)
+                if edge.target in self.nodes and edge.type not in excluded_types
+            ]
             for node_id in self.nodes
         }
 

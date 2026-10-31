@@ -195,11 +195,20 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="maximum graph expansions before the search stops (default: 200000)",
     )
+    analysis.add_argument(
+        "--allow-container-hops",
+        action="store_true",
+        help="also traverse structural Contains relationships (off by default: "
+        "control of a container does not by itself grant control of its members)",
+    )
 
     output = parser.add_argument_group("output")
     output.add_argument("--json", action="store_true", help="emit the JSON report on stdout")
     output.add_argument("--json-out", metavar="PATH", help="also write the JSON report to PATH")
     output.add_argument("--no-color", action="store_true", help="disable ANSI colours")
+    output.add_argument(
+        "--no-banner", action="store_true", help="omit the ASCII banner (useful in CI logs)"
+    )
     output.add_argument("--verbose", action="store_true", help="include INFO findings")
     output.add_argument(
         "--width", type=int, default=text.DEFAULT_WIDTH, metavar="N", help="wrap width (default: 100)"
@@ -237,6 +246,7 @@ def run(args: argparse.Namespace) -> int:
         starts=tuple(args.start),
         targets=tuple(args.target),
         include_default_targets=not args.no_default_targets,
+        skip_container_hops=not args.allow_container_hops,
     )
 
     if args.collect:
@@ -277,7 +287,13 @@ def _emit(result: AnalysisResult, args: argparse.Namespace) -> None:
         and os.environ.get("NO_COLOR") is None
     )
     sys.stdout.write(
-        text.render(result, verbose=args.verbose, use_color=use_color, width=args.width)
+        text.render(
+            result,
+            verbose=args.verbose,
+            use_color=use_color,
+            width=args.width,
+            show_banner=not args.no_banner,
+        )
     )
 
 

@@ -40,6 +40,9 @@ from .normalize import dn_key, normalise_sid, split_identifier
 DATA_GAP_CHECK = "AD-DATA"
 PATH_CHECK = "AD-PATH"
 
+#: How many consolidated principal labels are listed in a merged finding.
+MAX_NAMED_SOURCES = 5
+
 _REFERENCES = [
     "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/"
     "security-best-practices/best-practices-for-securing-active-directory",
@@ -81,6 +84,7 @@ class AnalysisConfig:
     starts: Sequence[str] = ()
     targets: Sequence[str] = ()
     include_default_targets: bool = True
+    skip_container_hops: bool = True
 
 
 @dataclass
@@ -96,6 +100,7 @@ class AnalysisResult:
     notes: List[str] = field(default_factory=list)
     skipped_sources: List[str] = field(default_factory=list)
     pruned_paths: int = 0
+    merged_paths: int = 0
 
     @property
     def labels(self) -> Dict[str, str]:
@@ -157,12 +162,23 @@ def analyse(dataset: DirectoryDataset, config: Optional[AnalysisConfig] = None) 
             )
         )
 
+    excluded: Tuple[str, ...] = ()
+    if config.skip_container_hops:
+        excluded = ("Contains",)
+        if any(edge.type == "Contains" for edge in dataset.edges):
+            notes.append(
+                "Structural Contains relationships were not traversed: control of a "
+                "container does not by itself grant control of its members "
+                "(--allow-container-hops to include them)."
+            )
+
     search = graph.find_paths(
         sources,
         target_ids,
         max_depth=config.max_depth,
         max_paths=config.max_paths,
         budget=config.budget,
+        excluded=excluded,
     )
     if search.missing_sources:
         notes.append(
@@ -176,8 +192,10 @@ def analyse(dataset: DirectoryDataset, config: Optional[AnalysisConfig] = None) 
 
     findings: List[Finding] = []
     seen_ids: Dict[str, Finding] = {}
+    merged_by_chain: Dict[Tuple, Finding] = {}
     pair_counts: Dict[Tuple[str, str], int] = {}
     pruned = 0
+    merged_count = 0
     targets_by_id = resolution.by_id()
 
     for path in search.paths:
@@ -188,12 +206,36 @@ def analyse(dataset: DirectoryDataset, config: Optional[AnalysisConfig] = None) 
         pair_counts[(path.source, path.target)] = pairs + 1
         target = targets_by_id[path.target]
         finding = _path_finding(path, graph, target)
-        existing = seen_ids.get(finding.id)
-        if existing is not None:
+        if finding.id in seen_ids:
             # Same relationship chain reached through duplicate records.
             continue
+
+        if path.length > 1:
+            shared = merged_by_chain.get(path.chain_key)
+            if shared is not None:
+                # A different principal joining the same group: one finding,
+                # not one near-identical finding per account.
+                shared.affected_count += 1
+                if (
+                    path.source not in shared.source_objects
+                    and len(shared.source_objects) < MAX_NAMED_SOURCES
+                ):
+                    shared.source_objects.append(path.source)
+                shared.description, shared.impact = _path_text(
+                    shared.path, graph, target, shared.source_objects
+                )
+                merged_count += 1
+                continue
+            merged_by_chain[path.chain_key] = finding
+
         seen_ids[finding.id] = finding
         findings.append(finding)
+
+    if merged_count:
+        notes.append(
+            f"Consolidated {merged_count} duplicate chain(s): principals that share a "
+            "chain are reported once, with the number of affected principals."
+        )
 
     if pruned:
         limitations.append(
@@ -222,6 +264,7 @@ def analyse(dataset: DirectoryDataset, config: Optional[AnalysisConfig] = None) 
             notes=notes,
             skipped_sources=skipped,
             pruned_paths=pruned,
+            merged_paths=merged_count,
         )
     )
 
@@ -333,10 +376,6 @@ def _domain_matches(object_domain: str, requested: str) -> bool:
 
 def _path_finding(path: PrivilegePath, graph: DirectoryGraph, target: Target) -> Finding:
     labels = graph.labels()
-    source_label = labels.get(path.source, path.source)
-    target_label = labels.get(path.target, path.target)
-
-    severity = target.severity_floor
     confidence = path.confidence
     steps = path.steps
     final_edge = steps[-1]
@@ -346,20 +385,16 @@ def _path_finding(path: PrivilegePath, graph: DirectoryGraph, target: Target) ->
         and final_edge.type in CONTROL_RELATIONSHIPS
         and final_edge.quality is EvidenceQuality.EXPLICIT
     )
-    if direct_control:
-        severity = severity.upgrade(1)
 
-    has_unresolved_node = False
+    # An unresolved intermediate object means the chain passes through data we
+    # could not identify, so it is a lead rather than a confirmed path.
     for node in path.nodes:
         obj = graph.object_for(node)
         if obj is None or obj.type is ObjectType.UNKNOWN:
-            has_unresolved_node = True
+            confidence = Confidence.weakest([confidence, Confidence.POSSIBLE])
             break
-    if has_unresolved_node:
-        confidence = Confidence.weakest([confidence, Confidence.POSSIBLE])
 
-    if confidence is Confidence.POSSIBLE:
-        severity = severity.downgrade(1)
+    severity = _path_severity(path, target, direct_control, confidence)
 
     category = _dominant_category(steps)
     check_id = PATH_CHECK
@@ -368,14 +403,7 @@ def _path_finding(path: PrivilegePath, graph: DirectoryGraph, target: Target) ->
         if direct_control
         else f"Potential path to privileged target: {target.definition}"
     )
-    description = (
-        f"The collected data connects {source_label} to {target_label} "
-        f"({target.definition}) through {len(steps)} relationship"
-        f"{'s' if len(steps) != 1 else ''}: "
-        + " -> ".join([labels.get(node, node) for node in path.nodes])
-        + ". This is a potential privilege path in the modelled data, not a "
-        "confirmed exploit."
-    )
+    description, impact = _path_text(path, graph, target, [path.source])
 
     evidence: List[Dict[str, object]] = []
     for index, edge in enumerate(steps, start=1):
@@ -407,24 +435,6 @@ def _path_finding(path: PrivilegePath, graph: DirectoryGraph, target: Target) ->
             "required for the business role."
         ]
 
-    if target.object_type == "domain":
-        impact = f"{source_label} may be able to gain control of {target_label} ({target.rationale})."
-    else:
-        impact = (
-            f"{source_label} may be able to gain the privileges of {target_label} "
-            f"({target.rationale})."
-        )
-    if len(steps) > 1:
-        impact += (
-            " Each intermediate step has its own prerequisites, so the chain is "
-            "only usable if every step is actually effective."
-        )
-    if any(step.type == "Session" for step in steps):
-        impact += (
-            " The chain depends on credential material from a logged-on session "
-            "remaining recoverable on the host."
-        )
-
     references = list(_REFERENCES)
     for step in steps:
         references.extend(_CATEGORY_REFERENCES.get(edge_category(step.type), []))
@@ -444,10 +454,89 @@ def _path_finding(path: PrivilegePath, graph: DirectoryGraph, target: Target) ->
         evidence=evidence,
         impact=impact,
         recommendation=" ".join(recommendations),
+        recommendations=recommendations,
         limitations=limitations,
         references=references,
         prerequisites=prerequisites,
     )
+
+
+def _path_severity(
+    path: PrivilegePath,
+    target: Target,
+    direct_control: bool,
+    confidence: Confidence,
+) -> Severity:
+    """Severity from target tier, evidence confidence and chain length.
+
+    Confidence is what keeps the report quiet: a chain resting on derived or
+    inferred data is a lead, not an incident, so it is reported at a lower
+    severity instead of piling everything into ``HIGH``.
+    """
+    severity = target.severity_floor
+    if direct_control:
+        severity = severity.upgrade(1)
+    if confidence is Confidence.LIKELY:
+        severity = severity.downgrade(1)
+    elif confidence is Confidence.POSSIBLE:
+        severity = severity.downgrade(2)
+    if path.length >= 5:
+        severity = severity.downgrade(1)
+    if severity is Severity.INFO:
+        # INFO is reserved for data-quality statements, never for a path.
+        severity = Severity.LOW
+    return severity
+
+
+def _path_text(
+    path: PrivilegePath,
+    graph: DirectoryGraph,
+    target: Target,
+    sources: Sequence[str],
+) -> Tuple[str, str]:
+    """Description and impact for a path, phrased for one or many principals."""
+    labels = graph.labels()
+    target_label = labels.get(path.target, path.target)
+    source_label = labels.get(sources[0], sources[0])
+    chain = " -> ".join(labels.get(node, node) for node in path.nodes)
+    relationships = "relationship" if path.length == 1 else "relationships"
+
+    if len(sources) == 1:
+        lead = (
+            f"The collected data connects {source_label} to {target_label} "
+            f"({target.definition})"
+        )
+    else:
+        named = ", ".join(labels.get(node, node) for node in sources[:3])
+        extra = " and others" if len(sources) > 3 else ""
+        lead = (
+            f"{len(sources)} starting principals share this {path.length}-{relationships[:-1]} "
+            f"chain to {target_label} ({target.definition}), including {named}{extra}"
+        )
+    description = (
+        f"{lead}: {chain}. This is a potential privilege path in the modelled data, "
+        "not a confirmed exploit."
+    )
+
+    if len(sources) == 1:
+        subject = source_label
+    else:
+        subject = f"{source_label} (and {len(sources) - 1} other principal(s))"
+    if target.object_type == "domain":
+        impact = f"{subject} may be able to gain control of {target_label} ({target.rationale})."
+    else:
+        impact = f"{subject} may be able to gain the privileges of {target_label} ({target.rationale})."
+    if path.length > 1:
+        impact += (
+            " Each intermediate step has its own prerequisites, so the chain is "
+            "only usable if every step is actually effective."
+        )
+    if any(step.type == "Session" for step in path.steps):
+        impact += (
+            " The chain depends on credential material from a logged-on session "
+            "remaining recoverable on the host."
+        )
+    return description, impact
 
 
 def _dominant_category(steps: Sequence[Edge]) -> str:

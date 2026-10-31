@@ -139,10 +139,22 @@ Exit codes: `0` nothing actionable, `1` low/medium, `2` high, `3` critical,
 
 Real output from the synthetic example (trimmed for length):
 
+The banner is presentation only: `--no-banner` removes it for CI logs, and
+`--no-color` (or a non-TTY stdout) drops the colours.
+
 ```text
-========================================
- Active Directory Security Analysis
-========================================
+ ○ analyst
+ │
+ ├─[MemberOf]──► ○ Helpdesk
+                 │
+                 ├─[GenericAll]──► ○ Support-Operators
+                                   │
+                                   ├─[MemberOf]──► ♛ DOMAIN ADMINS
+
+ ▄▀█ █▀▄   ▄▀█ █ █ █▀▄ █ ▀█▀
+ █▀█ █▄▀   █▀█ █▄█ █▄▀ █  █
+ read-only · evidence-backed · no exploitation
+AD-Audit 0.1.0 · report schema 1.0
 
 Target:   corp.example
 Mode:     Offline graph analysis (bloodhound)
@@ -154,16 +166,17 @@ Graph:    17 nodes | 40 relationships
 [+] Imported bloodhound dataset (17 objects, 40 relationships)
 [+] Resolved 3 privileged target(s) (3 by SID)
 [+] Analysed 9 starting principal(s) with max depth 6
+[+] Consolidated 2 duplicate chain(s) into shared findings
 
 Coverage: partial
   Import issues: 0 error(s), 0 warning(s), 2 note(s)
   Data gaps:     1
 
-Findings: 20
+Findings: 11
 Critical: 0
-High:     20
+High:     9
 Medium:   0
-Low:      0
+Low:      2
 Info:     0
 
 Privileged targets:
@@ -173,28 +186,41 @@ Privileged targets:
 
 Potential privilege paths:
 
-[HIGH] AD-PATH-eab0e6d3: Potential path to privileged target: Domain Admins
+[HIGH] AD-PATH-004c704e: Potential path to privileged target: Domain object
   Check:      AD-PATH
-  Category:   permission
+  Category:   replication
   Confidence: CONFIRMED
-  Start:      CORP.EXAMPLE\analyst
-  Target:     CORP.EXAMPLE\Domain Admins
-  Path:
-    CORP.EXAMPLE\analyst
-      -[MemberOf]-> CORP.EXAMPLE\Helpdesk
-      -[GenericAll]-> CORP.EXAMPLE\Support-Operators
-      -[MemberOf]-> CORP.EXAMPLE\Domain Admins
-  Why:
-    1. CORP.EXAMPLE\analyst is a member of CORP.EXAMPLE\Helpdesk; group membership is transitive and
-       confers every right the group holds.
-    2. CORP.EXAMPLE\Helpdesk holds full control over CORP.EXAMPLE\Support-Operators and can grant
-       itself any further right on the object.
-    3. CORP.EXAMPLE\Support-Operators is a member of CORP.EXAMPLE\Domain Admins; group membership is
-       transitive and confers every right the group holds.
+  Affects:    2 starting principals
+  Path:       CORP.EXAMPLE\analyst -> CORP.EXAMPLE\Helpdesk -> CORP.EXAMPLE\Support-Operators ->
+              CORP.EXAMPLE
+  Detail:     2 starting principals share this 3-relationship chain to CORP.EXAMPLE (Domain object),
+              including CORP.EXAMPLE\analyst, CORP.EXAMPLE\helpdesk1: CORP.EXAMPLE\analyst ->
+              CORP.EXAMPLE\Helpdesk -> CORP.EXAMPLE\Support-Operators -> CORP.EXAMPLE. This is a
+              potential privilege path in the modelled data, not a confirmed exploit.
+              CORP.EXAMPLE\analyst (and 1 other principal(s)) may be able to gain control of
+              CORP.EXAMPLE (full control over the domain object includes directory replication
+              rights (DCSync) and permission changes). Each intermediate step has its own
+              prerequisites, so the chain is only usable if every step is actually effective.
   Evidence:
     1. MemberOf: CORP.EXAMPLE\analyst -> CORP.EXAMPLE\Helpdesk  [explicit]
        Listed as a member of the group
        ref: groups.json#Helpdesk
+    2. GenericAll: CORP.EXAMPLE\Helpdesk -> CORP.EXAMPLE\Support-Operators  [explicit]
+       ACE right 'GenericAll' granted on the object
+       ref: groups.json#Support-Operators
+    3. DCSync: CORP.EXAMPLE\Support-Operators -> CORP.EXAMPLE  [explicit]
+       ACE right 'DCSync' granted on the object
+       ref: domains.json#CORP.EXAMPLE
+  Next steps:
+    - Review the membership, remove accounts that do not need the role, and prefer time-bound,
+      auditable role assignment over standing membership.
+    - Review the ACE on the target object, remove unnecessary modification rights, and confirm the
+      delegation is required and documented.
+    - Restrict directory replication rights to domain controllers only and review the holders of
+      DS-Replication-Get-Changes-All.
+  Limitations:
+    - Effective access was not verified: permissions are evaluated as collected, without expanding
+      group membership, deny ACEs, or control-access checks on the target object.
 ...
 NOTE: Findings are audit results requiring human verification, not proof of
 exploitability. A nonzero exit code means findings were reported - it does not
@@ -313,10 +339,12 @@ adaudit [options]
 | `--max-sources N` | maximum implicit starting principals (default 500) |
 | `--max-paths-per-pair N` | keep at most N paths per source/target pair (default 3) |
 | `--budget N` | maximum graph expansions (default 200000) |
+| `--allow-container-hops` | also traverse structural `Contains` edges (off by default) |
 | `--json` | JSON report on stdout |
 | `--json-out PATH` | also write the JSON report to a file |
 | `--verbose` | include INFO findings |
 | `--no-color` | disable ANSI colour (also auto-off when not a TTY) |
+| `--no-banner` | omit the ASCII banner |
 | `--width N` | wrap width (default 100) |
 | `--version`, `--help` | version and usage |
 
@@ -336,6 +364,25 @@ That one rule removes the direction ambiguity that otherwise makes ACL graphs
 hard to reason about. In particular a logged-on session is exported by
 BloodHound as user *has a session on* computer, but AD-Audit stores it as
 `computer -> user` because compromising the host is what exposes the account.
+
+### Keeping the signal
+
+A large domain produces thousands of near-identical chains, so the engine is
+deliberately conservative:
+
+- **Shared chains are consolidated.** If several principals reach a target
+  through the same group, the chain is reported once, with `Affects: N starting
+  principals` and the named principals in `source_objects`. A direct grant is
+  never merged, because each one is a separate permission.
+- **Structural containment is not a privilege path.** `Contains` edges are
+  imported (an OU/GPO inventory is useful) but not traversed: controlling a
+  container does not by itself grant control of the objects inside it. Use
+  `--allow-container-hops` when you want that assumption included.
+- **Severity follows evidence.** `CONFIRMED` keeps the target's floor,
+  `LIKELY` drops one level, `POSSIBLE` drops two, and a chain of five or more
+  steps drops one more. Weak data stays in the report as a lead instead of
+  dominating the count.
+- **INFO is opt-in**, so data-quality statements never pad the finding list.
 
 ### Relationship catalogue
 
