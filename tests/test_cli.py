@@ -185,6 +185,14 @@ def test_no_banner_option(capsys, example_export):
     assert captured.out.startswith("Target:")
 
 
+def test_ascii_option_uses_plain_art(capsys, example_export):
+    code, captured = run(["-i", str(example_export), "--ascii"], capsys)
+    assert code == 2
+    assert "AD AUDIT" in captured.out
+    assert "♛" not in captured.out
+    assert "←[" not in captured.out  # no raw escape bytes when stdout is not a TTY
+
+
 def test_verbose_includes_info_findings(capsys, tmp_path):
     path = write_json(
         tmp_path,
