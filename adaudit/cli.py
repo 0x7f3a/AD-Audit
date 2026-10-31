@@ -209,6 +209,11 @@ def build_parser() -> argparse.ArgumentParser:
     output.add_argument(
         "--no-banner", action="store_true", help="omit the ASCII banner (useful in CI logs)"
     )
+    output.add_argument(
+        "--ascii",
+        action="store_true",
+        help="force ASCII-only banner art (for consoles without Unicode support)",
+    )
     output.add_argument("--verbose", action="store_true", help="include INFO findings")
     output.add_argument(
         "--width", type=int, default=text.DEFAULT_WIDTH, metavar="N", help="wrap width (default: 100)"
@@ -281,11 +286,10 @@ def _emit(result: AnalysisResult, args: argparse.Namespace) -> None:
         sys.stdout.write(json_report.render(result, verbose=args.verbose))
         return
 
-    use_color = (
-        sys.stdout.isatty()
-        and not args.no_color
-        and os.environ.get("NO_COLOR") is None
-    )
+    # Windows consoles print raw escape bytes unless VT processing is enabled,
+    # so colour depends on the terminal actually understanding ANSI.
+    use_color = not args.no_color and text.supports_color(sys.stdout)
+    ascii_art = args.ascii or not text.supports_unicode(sys.stdout)
     sys.stdout.write(
         text.render(
             result,
@@ -293,6 +297,7 @@ def _emit(result: AnalysisResult, args: argparse.Namespace) -> None:
             use_color=use_color,
             width=args.width,
             show_banner=not args.no_banner,
+            ascii_art=ascii_art,
         )
     )
 

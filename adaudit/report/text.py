@@ -10,13 +10,15 @@ Layout, in order:
 * one block per finding, sorted by severity, with aligned ``Field:`` lines;
 * a closing ``NOTE:`` reminding the reader that findings are audit results.
 
-Everything is plain text with optional ANSI colour, so the output survives
-being saved, mailed, or pasted into a ticket. ``--no-banner`` drops the art for
-logs that are already framed by CI.
+Everything is plain text, so the output survives being saved, mailed, or pasted
+into a ticket. Colour is used only when the terminal will actually interpret
+ANSI escapes, and the banner falls back to ASCII when the output encoding
+cannot represent the box-drawing characters.
 """
 
 from __future__ import annotations
 
+import os
 import textwrap
 from typing import Dict, List, Optional, Sequence
 
@@ -53,6 +55,71 @@ ART: Sequence[str] = (
     " read-only · evidence-backed · no exploitation",
 )
 
+#: Fallback used when stdout cannot encode the box-drawing characters (a
+#: redirected Windows console, for example).
+ASCII_ART: Sequence[str] = (
+    " o analyst",
+    " |",
+    " +-[MemberOf]--> o Helpdesk",
+    "                 |",
+    "                 +-[GenericAll]--> o Support-Operators",
+    "                                   |",
+    "                                   +-[MemberOf]--> * DOMAIN ADMINS",
+    "",
+    " AD AUDIT",
+    " read-only - evidence-backed - no exploitation",
+)
+
+#: Characters the banner needs; used to probe the output encoding.
+_ART_PROBE = "○ │ ├ ─ ► ♛ ▄ █ ▀ ·"
+
+
+def supports_color(stream: object) -> bool:
+    """Whether ``stream`` will actually interpret ANSI escape sequences.
+
+    ``isatty`` is not enough on Windows: Windows PowerShell and conhost print
+    raw ``ESC[36m`` unless Virtual Terminal Processing is enabled, so the mode
+    is switched on when possible and colour stays off when it is not.
+    """
+    if os.environ.get("NO_COLOR") is not None:
+        return False
+    if os.environ.get("TERM") == "dumb":
+        return False
+    isatty = getattr(stream, "isatty", None)
+    if not callable(isatty) or not isatty():
+        return False
+    if os.name != "nt":
+        return True
+    return _enable_windows_vt()
+
+
+def supports_unicode(stream: object) -> bool:
+    """Whether the banner's characters can be encoded for ``stream``."""
+    encoding = getattr(stream, "encoding", None) or "utf-8"
+    try:
+        _ART_PROBE.encode(encoding)
+    except (LookupError, UnicodeEncodeError):
+        return False
+    return True
+
+
+def _enable_windows_vt() -> bool:  # pragma: no cover - exercised on Windows
+    """Turn on ANSI processing for the console, if Windows allows it."""
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        enable_vt = 0x0004
+        if mode.value & enable_vt:
+            return True
+        return bool(kernel32.SetConsoleMode(handle, mode.value | enable_vt))
+    except Exception:
+        return False
+
 
 def render(
     result: AnalysisResult,
@@ -60,13 +127,14 @@ def render(
     use_color: bool = False,
     width: int = DEFAULT_WIDTH,
     show_banner: bool = True,
+    ascii_art: bool = False,
 ) -> str:
     width = max(72, width)
     lines: List[str] = []
     labels = result.labels
 
     if show_banner:
-        _banner(lines, use_color)
+        _banner(lines, use_color, ascii_art)
     _context(lines, result, width)
 
     for line in _progress_lines(result):
@@ -113,15 +181,18 @@ def render(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _banner(lines: List[str], use_color: bool) -> None:
+def _banner(lines: List[str], use_color: bool, ascii_art: bool) -> None:
     color = _ART_COLOR if use_color else ""
     reset = RESET if use_color else ""
-    for line in ART:
+    for line in (ASCII_ART if ascii_art else ART):
         if not line:
             lines.append("")
             continue
         lines.append(f"{color}{line}{reset}")
-    lines.append(f"{color}{TOOL_NAME} {__version__} · report schema {SCHEMA_VERSION}{reset}")
+    separator = " - " if ascii_art else " · "
+    lines.append(
+        f"{color}{TOOL_NAME} {__version__}{separator}report schema {SCHEMA_VERSION}{reset}"
+    )
     lines.append("")
 
 

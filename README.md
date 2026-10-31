@@ -140,7 +140,11 @@ Exit codes: `0` nothing actionable, `1` low/medium, `2` high, `3` critical,
 Real output from the synthetic example (trimmed for length):
 
 The banner is presentation only: `--no-banner` removes it for CI logs, and
-`--no-color` (or a non-TTY stdout) drops the colours.
+`--no-color` (or a non-TTY stdout) drops the colours. Colour is emitted only
+when the terminal actually interprets ANSI escapes - Windows consoles get
+Virtual Terminal Processing enabled when possible and plain text otherwise -
+and the art falls back to ASCII when the output encoding cannot represent it
+(`--ascii` forces that).
 
 ```text
  ○ analyst
@@ -345,6 +349,7 @@ adaudit [options]
 | `--verbose` | include INFO findings |
 | `--no-color` | disable ANSI colour (also auto-off when not a TTY) |
 | `--no-banner` | omit the ASCII banner |
+| `--ascii` | force ASCII-only banner art |
 | `--width N` | wrap width (default 100) |
 | `--version`, `--help` | version and usage |
 

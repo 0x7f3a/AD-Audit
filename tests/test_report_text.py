@@ -121,6 +121,48 @@ def test_no_paths_message(tmp_path):
     assert "No potential privilege paths were found in the analysed data." in rendered
 
 
+def test_ascii_art_fallback(tmp_path):
+    rendered = text.render(example_result(tmp_path), ascii_art=True)
+    assert "AD AUDIT" in rendered
+    assert "○" not in rendered
+    assert "♛" not in rendered
+    assert rendered.isascii()
+
+
+def test_colour_requires_a_terminal_that_understands_ansi(monkeypatch):
+    class Pipe:
+        encoding = "utf-8"
+
+        def isatty(self):
+            return False
+
+    assert text.supports_color(Pipe()) is False
+    assert text.supports_unicode(Pipe()) is True
+
+    class LegacyConsole:
+        encoding = "cp1252"
+
+        def isatty(self):
+            return True
+
+    # cp1252 cannot represent the banner, so the ASCII fallback is used.
+    assert text.supports_unicode(LegacyConsole()) is False
+
+
+def test_windows_console_without_vt_gets_no_colour(monkeypatch):
+    class TTY:
+        encoding = "utf-8"
+
+        def isatty(self):
+            return True
+
+    monkeypatch.setattr(text.os, "name", "nt")
+    monkeypatch.setattr(text, "_enable_windows_vt", lambda: False)
+    assert text.supports_color(TTY()) is False
+    monkeypatch.setattr(text, "_enable_windows_vt", lambda: True)
+    assert text.supports_color(TTY()) is True
+
+
 def test_color_codes_only_when_requested(tmp_path):
     result = example_result(tmp_path)
     plain = text.render(result, use_color=False)
