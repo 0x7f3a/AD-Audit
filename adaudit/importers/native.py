@@ -57,7 +57,15 @@ SCHEMA_VERSION = "1.0"
 
 def load(path: Path, verbose: bool = False) -> DirectoryDataset:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        text = path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise DatasetImportError(
+            f"{path}: file is not UTF-8 text; an AD-Audit export must be UTF-8 JSON"
+        ) from exc
+    except OSError as exc:
+        raise DatasetImportError(f"{path}: cannot read file ({exc})") from exc
+    try:
+        payload = json.loads(text)
     except json.JSONDecodeError as exc:
         raise DatasetImportError(f"{path}: invalid JSON ({exc.msg} at line {exc.lineno})") from exc
 
@@ -243,9 +251,13 @@ def _add_relationship(
         return
 
     evidence_items = _parse_evidence(record.get("evidence"), edge_type, reference)
+    # The strongest evidence decides: an explicitly collected relationship is
+    # not weakened by an extra derived record of the same edge. This matches
+    # Edge.merge(), so exporting and re-importing a dataset keeps the
+    # confidence the analysis reported.
     quality = evidence_items[0].quality if evidence_items else EvidenceQuality.EXPLICIT
     for item in evidence_items[1:]:
-        if item.quality.confidence.rank < quality.confidence.rank:
+        if item.quality.confidence.rank > quality.confidence.rank:
             quality = item.quality
 
     dataset.add_edge(

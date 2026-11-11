@@ -95,6 +95,7 @@ def build(
                 "start_principals": list(result.config.starts),
                 "requested_targets": list(result.config.targets),
                 "include_default_targets": result.config.include_default_targets,
+                "skip_container_hops": result.config.skip_container_hops,
             },
             "search": result.search.to_dict(),
             "sources_analysed": len(result.sources),

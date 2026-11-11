@@ -172,6 +172,22 @@ def test_color_codes_only_when_requested(tmp_path):
     assert "\033[0m" in colored
 
 
+def test_long_finding_title_wraps_instead_of_overflowing(tmp_path):
+    payload = native_payload(
+        [
+            native_user(1105, "analyst"),
+            native_group(520, "Group Policy Creator Owners"),
+            native_domain(),
+        ],
+        [relationship("GenericAll", sid(1105), sid(520))],
+    )
+    rendered = text.render(analyse_payload(tmp_path, payload), width=80)
+    for line in rendered.splitlines():
+        if "http" in line:
+            continue
+        assert len(line) <= 80, line
+
+
 def test_lines_respect_wrap_width(tmp_path):
     result = example_result(tmp_path)
     width = 80

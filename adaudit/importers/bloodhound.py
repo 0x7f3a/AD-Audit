@@ -203,7 +203,7 @@ def _read_single_json(
     path: Path,
 ) -> Tuple[Dict[str, Tuple[List[Any], str]], List[str]]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        payload = json.loads(_read_text(path))
     except json.JSONDecodeError as exc:
         raise DatasetImportError(f"{path}: invalid JSON ({exc.msg} at line {exc.lineno})") from exc
     if not isinstance(payload, dict):
@@ -229,9 +229,21 @@ def _read_single_json(
     return collections, ignored
 
 
+def _read_text(path: Path) -> str:
+    """Read a JSON export as UTF-8, reporting encoding and IO failures."""
+    try:
+        return path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise DatasetImportError(
+            f"{path}: file is not UTF-8 text; BloodHound JSON exports must be UTF-8"
+        ) from exc
+    except OSError as exc:
+        raise DatasetImportError(f"{path}: cannot read file ({exc})") from exc
+
+
 def _load_json_file(path: Path) -> List[Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        payload = json.loads(_read_text(path))
     except json.JSONDecodeError as exc:
         raise DatasetImportError(f"{path}: invalid JSON ({exc.msg} at line {exc.lineno})") from exc
     return _records_from_payload(payload, kind_for_filename(path.name) or "unknown")

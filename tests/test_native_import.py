@@ -40,6 +40,44 @@ def test_round_trip_preserves_graph_and_findings(tmp_path, example_export):
     ]
 
 
+def test_mixed_evidence_keeps_the_strongest_quality(tmp_path):
+    payload = native_payload(
+        [native_user(1105, "analyst"), native_group(512, "Domain Admins"), native_domain()],
+        [
+            {
+                "type": "GenericAll",
+                "source": sid(1105),
+                "target": sid(512),
+                "evidence": [
+                    {"detail": "inherited ACE", "quality": "derived"},
+                    {"detail": "explicit ACE", "quality": "explicit"},
+                ],
+            }
+        ],
+    )
+    dataset = load_payload(tmp_path, payload)
+    assert dataset.edges[0].quality.value == "explicit"
+
+
+def test_export_round_trip_preserves_edge_quality(tmp_path, example_export):
+    original = load_dataset([str(example_export)])
+    restored = load_dataset(
+        [str(write_json(tmp_path, to_payload(original), "round-trip.json"))],
+        fmt="adaudit",
+    )
+    before = {(edge.type, edge.source, edge.target): edge.quality.value for edge in original.edges}
+    after = {(edge.type, edge.source, edge.target): edge.quality.value for edge in restored.edges}
+    assert before == after
+
+
+def test_non_utf8_input_is_a_clear_error(tmp_path):
+    path = tmp_path / "export.json"
+    path.write_bytes(b'{"objects": [{"name": "\xff"}], "relationships": []}')
+    with pytest.raises(DatasetImportError) as excinfo:
+        load_dataset([str(path)])
+    assert "UTF-8" in str(excinfo.value)
+
+
 def test_target_can_be_a_distinguished_name_with_commas(tmp_path):
     payload = native_payload(
         [native_user(1105, "analyst", dn="CN=Analyst,OU=Staff,DC=corp,DC=example")]

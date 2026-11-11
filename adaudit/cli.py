@@ -260,7 +260,12 @@ def run(args: argparse.Namespace) -> int:
         dataset = load_dataset(args.inputs, fmt=args.format)
 
     if args.export_native:
-        destination = write_native(dataset, args.export_native)
+        try:
+            destination = write_native(dataset, args.export_native)
+        except OSError as exc:
+            raise UsageError(
+                f"cannot write --export-native {args.export_native}: {exc}"
+            ) from exc
         _note(f"dataset exported to {destination}")
 
     result = analyse(dataset, config)
@@ -275,22 +280,25 @@ def _emit(result: AnalysisResult, args: argparse.Namespace) -> None:
     if args.json_out:
         rendered = json_report.render(result, verbose=args.verbose)
         target = os.path.expanduser(args.json_out)
-        parent = os.path.dirname(target)
-        if parent and not os.path.isdir(parent):
-            os.makedirs(parent, exist_ok=True)
-        with open(target, "w", encoding="utf-8") as handle:
-            handle.write(rendered)
+        try:
+            parent = os.path.dirname(target)
+            if parent and not os.path.isdir(parent):
+                os.makedirs(parent, exist_ok=True)
+            with open(target, "w", encoding="utf-8") as handle:
+                handle.write(rendered)
+        except OSError as exc:
+            raise UsageError(f"cannot write --json-out {target}: {exc}") from exc
         _note(f"JSON report written to {target}")
 
     if args.json:
-        sys.stdout.write(json_report.render(result, verbose=args.verbose))
+        _write_stdout(json_report.render(result, verbose=args.verbose))
         return
 
     # Windows consoles print raw escape bytes unless VT processing is enabled,
     # so colour depends on the terminal actually understanding ANSI.
     use_color = not args.no_color and text.supports_color(sys.stdout)
     ascii_art = args.ascii or not text.supports_unicode(sys.stdout)
-    sys.stdout.write(
+    _write_stdout(
         text.render(
             result,
             verbose=args.verbose,
@@ -327,8 +335,10 @@ def _validate(args: argparse.Namespace) -> None:
         raise UsageError("--max-paths-per-pair must be at least 1")
     if args.budget < 1:
         raise UsageError("--budget must be at least 1")
-    if args.width < 60:
-        raise UsageError("--width must be at least 60")
+    if args.width < 72:
+        raise UsageError(
+            "--width must be at least 72 (narrower output would break the report layout)"
+        )
     if args.timeout <= 0:
         raise UsageError("--timeout must be greater than zero")
     if args.page_size < 1:
@@ -401,6 +411,19 @@ def _error(message: str) -> None:
 
 def _note(message: str) -> None:
     sys.stderr.write(f"{PROG}: {message}\n")
+
+
+def _write_stdout(document: str) -> None:
+    """Write the report, degrading characters the console cannot encode.
+
+    A Windows console in a legacy code page raises ``UnicodeEncodeError`` on
+    characters such as accented account names; the report must still print.
+    """
+    try:
+        sys.stdout.write(document)
+    except UnicodeEncodeError:
+        encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+        sys.stdout.write(document.encode(encoding, "replace").decode(encoding, "replace"))
 
 
 if __name__ == "__main__":  # pragma: no cover

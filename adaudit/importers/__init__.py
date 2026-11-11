@@ -162,6 +162,10 @@ def _read_json(path: Path):
             return json.load(handle)
     except json.JSONDecodeError as exc:
         raise DatasetImportError(f"{path}: invalid JSON ({exc.msg} at line {exc.lineno})") from exc
+    except UnicodeDecodeError as exc:
+        raise DatasetImportError(
+            f"{path}: file is not UTF-8 text; inputs must be UTF-8 JSON"
+        ) from exc
     except OSError as exc:
         raise DatasetImportError(f"{path}: cannot read file ({exc})") from exc
 

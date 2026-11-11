@@ -193,6 +193,31 @@ def test_ascii_option_uses_plain_art(capsys, example_export):
     assert "←[" not in captured.out  # no raw escape bytes when stdout is not a TTY
 
 
+def test_unwritable_json_out_is_a_usage_error(capsys, example_export, tmp_path):
+    directory = tmp_path / "report-dir"
+    directory.mkdir()
+    assert main(["-i", str(example_export), "--json-out", str(directory)]) == 4
+    assert "cannot write" in capsys.readouterr().err
+
+
+def test_stdout_write_survives_unencodable_characters(monkeypatch):
+    class LegacyStream:
+        encoding = "cp1252"
+
+        def __init__(self):
+            self.written = []
+
+        def write(self, text):
+            text.encode(self.encoding)  # a real legacy console raises here
+            self.written.append(text)
+
+    stream = LegacyStream()
+    monkeypatch.setattr(cli.sys, "stdout", stream)
+    cli._write_stdout("analyst Łukasz\n")
+    assert stream.written
+    assert "analyst" in stream.written[-1]
+
+
 def test_verbose_includes_info_findings(capsys, tmp_path):
     path = write_json(
         tmp_path,
@@ -244,6 +269,7 @@ def test_invalid_limits_are_rejected(capsys, example_export):
         ["--max-sources", "0"],
         ["--budget", "0"],
         ["--width", "20"],
+        ["--width", "60"],
     ):
         assert main(["-i", str(example_export)] + argv) == 4
         assert capsys.readouterr().err

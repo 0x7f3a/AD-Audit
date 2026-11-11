@@ -86,6 +86,7 @@ def test_analysis_block_records_configuration(tmp_path):
     assert analysis["graph"]["relationships"] == 2
     assert analysis["configuration"]["max_depth"] == 6
     assert analysis["configuration"]["include_default_targets"] is True
+    assert analysis["configuration"]["skip_container_hops"] is True
     assert analysis["search"]["count"] == len(result.search.paths)
     assert set(analysis["targets"][0]) == {
         "id",
