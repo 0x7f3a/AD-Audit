@@ -199,11 +199,6 @@ class Edge:
     def confidence(self) -> Confidence:
         return self.quality.confidence
 
-    def add_evidence(self, item: EvidenceItem) -> None:
-        self.evidence.append(item)
-        if item.quality.confidence.rank < self.quality.confidence.rank:
-            self.quality = item.quality
-
     def merge(self, other: "Edge") -> None:
         """Merge duplicate evidence for the same relationship.
 

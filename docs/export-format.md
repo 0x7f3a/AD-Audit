@@ -106,8 +106,11 @@ Evidence records:
 | `quality` | `explicit` (default), `derived`, or `inferred` |
 | `reference` | where it came from (file, record, LDAP DN) |
 
-The weakest evidence quality in a path determines the path's confidence;
-`inferred` evidence also downgrades the finding's severity by one step.
+The weakest edge quality in a path determines the path's confidence (`derived`
+= LIKELY, `inferred` = POSSIBLE), and lower confidence reduces the finding's
+severity. When several evidence records describe the same edge, the strongest
+one decides that edge's quality: an explicitly collected relationship is not
+weakened by an additional derived record.
 
 ## Validation rules
 

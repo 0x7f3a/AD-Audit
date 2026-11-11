@@ -201,13 +201,13 @@ def _context(lines: List[str], result: AnalysisResult, width: int) -> None:
     collection = dataset.collection
 
     target = collection.target_domain or "unknown"
-    lines.append(f"Target:   {_truncate(target, width - 10)}")
-    lines.append(f"Mode:     {_mode_label(collection.mode, collection.format)}")
+    lines.append(_key_line("Target", _truncate(target, width - 10)))
+    lines.append(_key_line("Mode", _mode_label(collection.mode, collection.format)))
     if collection.inputs:
         inputs = ", ".join(collection.inputs)
-        lines.append(f"Input:    {_truncate(inputs, width - 10)}")
+        lines.append(_key_line("Input", _truncate(inputs, width - 10)))
     if collection.collected_at:
-        lines.append(f"Collected: {collection.collected_at}")
+        lines.append(_key_line("Collected", collection.collected_at))
     lines.append("")
 
     counts = dataset.object_type_counts()
@@ -227,6 +227,11 @@ def _context(lines: List[str], result: AnalysisResult, width: int) -> None:
         f"Graph:    {len(result.graph.nodes)} nodes | {result.graph.edge_count} relationships"
     )
     lines.append("")
+
+
+def _key_line(label: str, value: str) -> str:
+    """Align the ``Key:`` context column at ten characters."""
+    return f"{label + ':':<10}{value}"
 
 
 def _truncate(value: str, limit: int) -> str:
@@ -334,9 +339,20 @@ def _finding_block(
 ) -> None:
     color = _SEVERITY_COLOR.get(finding.severity, "") if use_color else ""
     reset = RESET if use_color else ""
-    lines.append(
-        f"{color}[{finding.severity.label}]{reset} {finding.id}: {finding.title}"
+    tag = f"[{finding.severity.label}]"
+    prefix = f"{tag} {finding.id}: "
+    # Wrap the title under the prefix so a long target name cannot overflow the
+    # configured width; the colour codes are added after wrapping so they do not
+    # count towards it.
+    header = _wrap(
+        finding.title,
+        indent=" " * len(prefix),
+        width=width,
+        first_indent=prefix,
     )
+    if color:
+        header[0] = f"{color}{tag}{reset}" + header[0][len(tag) :]
+    lines.extend(header)
 
     fields: List = [
         ("Check:", finding.check_id),

@@ -350,7 +350,7 @@ adaudit [options]
 | `--no-color` | disable ANSI colour (also auto-off when not a TTY) |
 | `--no-banner` | omit the ASCII banner |
 | `--ascii` | force ASCII-only banner art |
-| `--width N` | wrap width (default 100) |
+| `--width N` | wrap width (default 100, minimum 72) |
 | `--version`, `--help` | version and usage |
 
 `--start` and `--target` accept a SID, an object id, `DOMAIN\name`, a
@@ -595,7 +595,7 @@ pip install '.[dev]'
 python -m pytest
 ```
 
-156 tests cover the graph engine (direct/indirect paths, direction, cycles,
+171 tests cover the graph engine (direct/indirect paths, direction, cycles,
 duplicates, depth/path/budget limits, no-path cases), both importers (ZIP,
 directory, combined JSON, duplicate records, malformed data, unsupported files
 and rights, placeholders, round-trip), target resolution, the finding engine
